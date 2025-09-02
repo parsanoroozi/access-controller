@@ -1,0 +1,34 @@
+🏢 Multi-tenancy = multiple clients/companies using the same IAM
+Example:
+
+
+You host IAM for Company A and Company B.
+
+
+
+Each has its own accounts, resources, and roles.
+
+
+You must make sure no cross-leakage happens.
+
+
+The points:
+Row-level security or per-tenant schemas
+
+
+When you store data in DB, make sure Company A cannot see Company B’s rows.
+
+
+You can do this by:
+
+Adding a tenant_id column and filtering every query (WHERE tenant_id = ?),
+
+
+Or separating them into different schemas/databases.
+
+
+
+
+
+
+👉 Like making sure each company has its own locked drawer.

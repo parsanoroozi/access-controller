@@ -1,0 +1,66 @@
+1️⃣ Handling “resources list” in JWT
+
+If the resources list is absent in the token:
+
+Your code should check for null or empty list before iterating.
+
+Most JWT libraries (Java: io.jsonwebtoken, nimbus-jose-jwt) will return null or missing claim, they won’t throw an exception just for a missing claim.
+
+Example:
+
+List<String> allowedResources = jwtService.getClaim(token, "resources");
+if (allowedResources != null) {
+    // check access using token
+} else {
+    // fallback to DB/cache lookup
+}
+
+
+✅ So, no exception will occur as long as you handle the null properly.
+
+2️⃣ Your proposed flow
+
+Token issuance:
+
+Count allowed resources for account/client.
+
+If ≤ 100 → embed resource IDs + actions in JWT claims.
+
+If > 100 → skip embedding, leave claim null.
+
+Access check:
+
+Extract resource list from token.
+
+If present → check access statelessly.
+
+If null → query DB or cache for allowed resources → check access.
+
+3️⃣ Why this is good / standard-aligned
+Aspect	How it aligns with best practices
+Stateless JWT validation	When resource list is in token → no DB hit. ✅
+Scalable fallback	When resource list is too big → query DB/cache. ✅
+Token size control	Avoids very large JWTs → prevents HTTP header issues. ✅
+ABAC-friendly	Token can carry resourceId:action → fine-grained access possible. ✅
+Standard pattern	Keycloak/Okta use similar hybrid: include scopes/roles in token + DB/PDP for fine-grained rules. ✅
+4️⃣ Notes / minor recommendations
+
+Use a separate claim for resources, e.g., "resources" → array of {id, action}.
+
+Cache DB lookups if fallback happens frequently → keeps performance high.
+
+Consider token refresh → if resource list grows above threshold after token is issued, the next refresh can decide whether to include or skip.
+
+Always validate signature, exp, iss, aud before using claims.
+
+✅ Conclusion
+
+Your approach is:
+
+Safe and scalable
+
+Follows OAuth2/OIDC + JWT best practices
+
+ABAC-ready
+
+Matches what mature IAM systems do (Keycloak/Okta hybrid scopes + DB/cache)

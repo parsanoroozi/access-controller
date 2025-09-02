@@ -1,0 +1,120 @@
+🔹 What you’re doing now
+
+You have jwtService.validateToken().
+
+After that, you check the database for extra stuff (like user info, roles, etc.)
+
+🔹 Why this matters
+
+Right now you’re mixing:
+
+Local JWT validation
+
+Extra DB checks that are not always necessary
+
+The standard way is:
+
+JWT access token: validate locally (fast, no DB round-trip).
+
+Opaque token: validate by calling IAM /introspect.
+
+
+✅ Simple “Fix Checklist” for JWT validation
+
+When validating JWTs, always check:
+
+iss → Is it from your IAM?
+
+aud → Is it really for your API?
+
+exp / nbf / iat → Not expired, not used too early.
+
+sub → The user ID/account.
+
+client_id (if present) → Matches the registered client.
+
+scope → Client has the right permissions.
+
+alg + kid → Signature is correct, alg is safe, key is the right one.
+
+jti → Track/revoke tokens if needed.
+
+👉 So, in plain words:
+
+If your IAM issues JWT tokens → you should only check the token itself (signature + claims), not the DB.
+
+If your IAM issues opaque tokens → you must ask IAM via /introspect if the token is valid.
+
+
+
+===========
+1. JWTs are self-contained
+
+When the IAM issues a JWT access token, it already embedded the truth inside it:
+
+The sub = user/account ID (e.g., 123 or alice@example.com)
+
+The client_id = the client who requested it
+
+The scope = what this token can do
+
+When your microservice (resource server) receives the JWT, it just:
+
+Verifies the signature (to ensure IAM really issued it).
+
+Verifies the claims (exp, iss, aud, etc.).
+
+If those checks pass, then you already know:
+
+This user was authenticated by IAM
+
+This client is a registered one
+
+The token is still valid and untampered
+
+👉 That’s why you don’t need a DB lookup for every request.
+The JWT itself is the guarantee.
+
+2. But when would you need the DB?
+
+You only hit your IAM DB in special cases:
+
+First time login / registration (to authenticate user credentials or register a client)
+
+When issuing the token (IAM itself looks up the user + client, then signs the JWT)
+
+For revocation/blacklist (if you allow logout before expiry → check if jti is revoked)
+
+For extra app data not inside the token (e.g., token says sub=123, but your API also needs the user’s profile picture → you’ll query your user DB, but that’s not for validation)
+
+3. Why is this designed like that?
+
+Because JWTs are meant to be stateless: the resource server doesn’t need to phone home to IAM or DB each time.
+
+That’s what makes them fast and scalable in microservices.
+
+🔑 How it should work with JWT
+
+When IAM issues the access token, it should already have done this check:
+
+✅ During /token request:
+
+IAM verifies user credentials.
+
+IAM verifies user belongs to that client (like in your snippet).
+
+IAM embeds both sub (user/account ID) and client_id inside the JWT.
+
+So later, when your resource server sees the token:
+
+It doesn’t need to go to DB.
+
+It just trusts: “IAM already confirmed this user belongs to that client when the token was minted.”
+=========
+BUT:::
+
+(checking the resource belonging to the client) 
+(checking the account has access to that resource)
+
+these two needs the db (or cache) check and cannot get handled by the jwt simple checks...
+
